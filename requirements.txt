@@ -1,0 +1,7 @@
+requests>=2.31.0
+python-dotenv>=1.0.0
+pytest>=8.0.0
+
+# 선택 사항: nlp/sentiment_model.py의 FinBERT 앙상블 기능을 쓸 때만 필요
+# transformers>=4.40.0
+# torch>=2.2.0
