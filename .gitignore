@@ -1,5 +1,6 @@
 .env
 output/*.csv
+.cache/
 __pycache__/
 *.pyc
 .pytest_cache/

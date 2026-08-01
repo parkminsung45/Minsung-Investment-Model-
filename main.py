@@ -12,13 +12,14 @@ import os
 from datetime import datetime
 
 import config
-from data_sources.news_fetcher import fetch_news_for_universe
-from data_sources.analyst_fetcher import (
+from data_pipeline import (
+    fetch_news_for_universe,
     fetch_recommendation_trends,
     fetch_price_target,
     recommendation_to_score,
+    aggregate_news_score,
+    build_signal,
 )
-from signals.signal_builder import aggregate_news_score, build_signal
 
 
 def run():
@@ -30,13 +31,13 @@ def run():
 
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 
-    print(f"[1/3] 뉴스 수집 중... 대상: {config.TICKERS}")
+    print(f"[1/3] 뉴스 수집 중... 대상: {config.WATCHLIST}")
     news_by_ticker = fetch_news_for_universe(
-        config.TICKERS, config.ALPHA_VANTAGE_API_KEY, config.NEWS_FETCH_DELAY_SEC
+        config.WATCHLIST, config.ALPHA_VANTAGE_API_KEY, config.NEWS_FETCH_DELAY_SEC
     )
 
     signals = []
-    for ticker in config.TICKERS:
+    for ticker in config.WATCHLIST:
         print(f"[2/3] {ticker} 애널리스트 데이터 수집 중...")
         rec = fetch_recommendation_trends(ticker, config.FINNHUB_API_KEY)
         target = fetch_price_target(ticker, config.FINNHUB_API_KEY)
