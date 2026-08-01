@@ -34,11 +34,14 @@ cp .env.example .env
 ├── main.py              # 관심종목(WATCHLIST) 뉴스+애널리스트 결합 시그널 실행
 ├── scan_universe.py     # S&P500+NASDAQ100 전체 종목 애널리스트 스코어 스캔
 ├── config.py            # 설정값 (티커, 가중치, API 키 로딩)
-├── data_pipeline.py     # 뉴스/애널리스트/유니버스 수집 + 시그널 결합 + FinBERT
+├── data_pipeline.py     # 뉴스/애널리스트/유니버스/재무건전성 수집 + 시그널 결합 + FinBERT
 ├── broker.py            # 토스증권 Open API 클라이언트 (계좌/주문, 기본 드라이런)
+├── strategy.py          # 점수 -> 매수/매도 판단, 포지션 사이징, 재무 건전성 필터
+├── run_strategy.py      # strategy.py를 실제 계좌에 대해 실행하는 진입점
 ├── tests/
 │   ├── test_data_pipeline.py
-│   └── test_broker.py
+│   ├── test_broker.py
+│   └── test_strategy.py
 ├── .cache/               # data_pipeline.py의 종목 리스트 캐시 (git 제외)
 └── output/               # signals_*.csv, universe_analyst_scores_*.csv 생성 위치
 ```
@@ -144,12 +147,50 @@ result = broker.create_order(
 아직 검증하지 못했습니다. 승인되면 `get_accounts()`부터 먼저 호출해
 응답 형식을 확인한 뒤 필요하면 파싱 로직을 다듬어야 합니다.
 
+## 8. 매매 전략 (strategy.py, run_strategy.py)
+
+`signals_*.csv`(WATCHLIST, combined_score)와 `universe_analyst_scores_*.csv`
+(그 외 종목, analyst_score)의 점수를 실제 매수/매도 판단으로 연결합니다.
+
+규칙:
+
+1. `score > config.BUY_THRESHOLD`(기본 0.3) -> 매수 후보
+   - 이미 보유 중이면 건너뜀
+   - **재무 건전성 필터**: Finnhub Basic Financials(`stock/metric`)로
+     순이익률(TTM) > 0, ROE(TTM) > 0, 부채비율(D/E) < 2.0을 확인해
+     통과하지 못하면 매수하지 않음 (`config.MIN_NET_MARGIN`,
+     `config.MIN_ROE`, `config.MAX_DEBT_TO_EQUITY`)
+   - 매수가능금액(buying power)의 `config.POSITION_SIZE_PCT`(기본 5%)만큼
+     시장가 매수
+2. `score < config.SELL_THRESHOLD`(기본 -0.3) -> 보유 중이면 전량 시장가 매도
+3. 그 외 -> 홀드
+
+```bash
+python run_strategy.py
+```
+
+`broker.create_order()`의 안전장치(기본 드라이런, `TOSS_LIVE_TRADING=true`+
+`confirm=True` 필요)가 그대로 적용됩니다. `strategy.run()`은 `confirm`을
+`config.TOSS_LIVE_TRADING`과 동일한 값으로 자동 전달하므로, 사람이 매번
+확인할 필요 없이 "실거래를 켠다"는 결정 하나가 유일한 게이트가 됩니다.
+
+**⚠️ 임계값 보정 필요**: Finnhub 애널리스트 점수는 매도 의견이 구조적으로
+드물어 양수 쪽에 쏠려 있습니다. 519개 유니버스 스캔 기준 중앙값이 0.41이라,
+기본 임계값(0.3)으로는 약 74%(385개)가 매수 후보로 잡힙니다. 지금은 로직
+구현을 우선하고 임계값 자체는 나중에 다시 조정하기로 했습니다 — 실제
+운용 전에 `BUY_THRESHOLD`/`SELL_THRESHOLD`를 상위 N% 방식 등으로
+재검토할 것.
+
+`accounts`, `holdings`, `buying-power`, `sellable-quantity` 응답의 정확한
+필드명은 토스증권 API 승인 전이라 실제 자격증명으로 검증하지 못했습니다.
+`strategy.py`의 `_extract_value()`가 후보 키 여러 개를 시도하도록 만들어
+뒀지만, 승인 후 실제 응답을 보고 정리해야 합니다.
+
 ## 다음 단계
 
-- `signals_*.csv`의 `combined_score`를 실제 매수/매도 판단(임계값, 포지션
-  크기, 리밸런싱 주기 등)으로 연결하는 매매 전략 설계
 - 백테스팅 엔진: 과거 시그널·가격 데이터로 전략 수익률 검증
-- 토스증권 API 승인 후 `broker.py` 실제 계좌로 검증
+- `BUY_THRESHOLD`/`SELL_THRESHOLD` 재보정 (상위 N% 방식 등)
+- 토스증권 API 승인 후 `broker.py`/`strategy.py` 실제 계좌로 검증
 
 ## 참고 (중요)
 

@@ -137,6 +137,42 @@ def fetch_price_target(ticker: str, api_key: str) -> Dict:
     }
 
 
+def fetch_basic_financials(ticker: str, api_key: str) -> Dict:
+    """Finnhub Basic Financials (stock/metric). 무료 티어에서 사용 가능."""
+    resp = requests.get(
+        f"{FINNHUB_BASE_URL}/stock/metric",
+        params={"symbol": ticker, "metric": "all", "token": api_key},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json().get("metric", {})
+
+
+def passes_financial_health(
+    metrics: Dict,
+    min_net_margin: float = 0.0,
+    min_roe: float = 0.0,
+    max_debt_to_equity: float = 2.0,
+) -> bool:
+    """
+    재무 건전성 필터 (기본값: 순이익률(TTM)>0, ROE(TTM)>0, 부채비율(D/E)<2.0).
+    fetch_basic_financials()가 반환한 netProfitMarginTTM, roeTTM,
+    totalDebt/totalEquityAnnual 지표를 사용한다.
+    지표가 없으면 보수적으로 통과시키지 않는다.
+    """
+    if not metrics:
+        return False
+
+    net_margin = metrics.get("netProfitMarginTTM")
+    roe = metrics.get("roeTTM")
+    debt_to_equity = metrics.get("totalDebt/totalEquityAnnual")
+
+    if net_margin is None or roe is None or debt_to_equity is None:
+        return False
+
+    return net_margin > min_net_margin and roe > min_roe and debt_to_equity < max_debt_to_equity
+
+
 def recommendation_to_score(rec: Dict) -> float:
     """
     추천등급 분포를 -1(강한 매도) ~ +1(강한 매수) 사이 점수로 변환한다.

@@ -48,6 +48,32 @@ def test_recommendation_to_score_empty():
     assert dp.recommendation_to_score({}) == 0.0
 
 
+def test_passes_financial_health_true_for_healthy_metrics():
+    metrics = {"netProfitMarginTTM": 27.6, "roeTTM": 137.2, "totalDebt/totalEquityAnnual": 1.35}
+    assert dp.passes_financial_health(metrics) is True
+
+
+def test_passes_financial_health_false_for_negative_margin():
+    metrics = {"netProfitMarginTTM": -5, "roeTTM": 10, "totalDebt/totalEquityAnnual": 1.0}
+    assert dp.passes_financial_health(metrics) is False
+
+
+def test_passes_financial_health_false_for_high_debt_to_equity():
+    metrics = {"netProfitMarginTTM": 10, "roeTTM": 10, "totalDebt/totalEquityAnnual": 5.0}
+    assert dp.passes_financial_health(metrics) is False
+
+
+def test_passes_financial_health_false_when_metrics_missing():
+    assert dp.passes_financial_health({}) is False
+    assert dp.passes_financial_health({"netProfitMarginTTM": 10}) is False
+
+
+def test_passes_financial_health_respects_custom_thresholds():
+    metrics = {"netProfitMarginTTM": 1, "roeTTM": 1, "totalDebt/totalEquityAnnual": 1.5}
+    assert dp.passes_financial_health(metrics, max_debt_to_equity=2.0) is True
+    assert dp.passes_financial_health(metrics, max_debt_to_equity=1.0) is False
+
+
 @pytest.fixture(autouse=True)
 def isolated_universe_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(dp, "_CACHE_PATH", str(tmp_path / "universe_cache.json"))

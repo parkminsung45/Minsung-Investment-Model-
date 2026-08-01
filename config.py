@@ -34,3 +34,20 @@ NEWS_FETCH_DELAY_SEC = 12.0
 # scan_universe.py: S&P500+NASDAQ100 전체 스캔 시 Finnhub 호출 간 대기시간(초).
 # 무료 티어 분당 60회 한도에 대응.
 FINNHUB_UNIVERSE_DELAY_SEC = 1.0
+
+# 매매 전략 (strategy.py). score(-1~1) 기준:
+#   score > BUY_THRESHOLD  -> 매수
+#   score < SELL_THRESHOLD -> 매도 (보유 중일 때만)
+#   그 외                   -> 홀드
+BUY_THRESHOLD = 0.3
+SELL_THRESHOLD = -0.3
+
+# 매수 시 종목당 매수가능금액(buying power) 대비 매수 비율
+POSITION_SIZE_PCT = 0.05
+
+# 재무 건전성 필터 (data_pipeline.passes_financial_health). Finnhub Basic
+# Financials(stock/metric) 기준: 순이익률>0, ROE>0, 부채비율(D/E)<2.0.
+# 매수 후보 종목이 이 조건을 통과하지 못하면 매수하지 않는다.
+MIN_NET_MARGIN = 0.0
+MIN_ROE = 0.0
+MAX_DEBT_TO_EQUITY = 2.0
